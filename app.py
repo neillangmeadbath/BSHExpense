@@ -131,11 +131,29 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
         date_match = re.search(r"(20\d{2}-\d{2}-\d{2})", text)
         expense_date = date_match.group(1) if date_match else dt.date.today().isoformat()
 
-        amount_match = re.search(r"(?i)(?:total|amount)\s*[:]?\s*([€$£]?\s*\d+(?:[\.,]\d{2})?)", text)
-        amount_str = amount_match.group(1).replace(" ", "") if amount_match else "0"
+        amount_str = "0"
+        parsed_currency = None
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
+            lower = line.lower()
+            if not (lower.startswith("total") or lower.startswith("amount")):
+                continue
+
+            value_part = line.split(":", 1)[1].strip() if ":" in line else line
+            tokens = value_part.replace(",", ".").split()
+
+            if tokens:
+                if tokens[0].upper() in {"EUR", "USD", "GBP"} and len(tokens) > 1:
+                    parsed_currency = tokens[0].upper()
+                    amount_str = tokens[1]
+                else:
+                    amount_str = tokens[0]
+            break
 
         currency = "EUR"
-        if amount_str and amount_str[0] in CURRENCY_SYMBOLS:
+        if parsed_currency:
+            currency = parsed_currency
+        elif amount_str and amount_str[0] in CURRENCY_SYMBOLS:
             currency = CURRENCY_SYMBOLS[amount_str[0]]
             amount_str = amount_str[1:]
         else:
